@@ -1,0 +1,13 @@
+{
+  "name": "kettle-sync-server",
+  "version": "1.0.0",
+  "description": "Cloud relay server for Kettle-Sync",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "dotenv": "^16.4.5"
+  }
+}
