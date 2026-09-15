@@ -6,7 +6,7 @@ const pairs = new Map();
 
 function getOrCreatePair(pairId) {
   if (!pairs.has(pairId)) {
-    pairs.set(pairId, { deviceA: null, deviceB: null, lastTemp: 25.0, lastSeenA: 0, lastSeenB: 0 });
+    pairs.set(pairId, { deviceA: null, deviceB: null, lastState: false, lastSeenA: 0, lastSeenB: 0 });
   }
   return pairs.get(pairId);
 }
@@ -30,6 +30,7 @@ wss.on('connection', (ws) => {
       if (role !== 'A' && role !== 'B') return safeSend(ws, { type: 'error', message: 'invalid_role' });
       if (!pair_id) return safeSend(ws, { type: 'error', message: 'missing_pair_id' });
       if (!token) return safeSend(ws, { type: 'error', message: 'missing_token' });
+
       const pair = getOrCreatePair(pair_id);
       boundPairId = pair_id;
       boundRole = role;
@@ -43,18 +44,12 @@ wss.on('connection', (ws) => {
     if (!boundPairId) return safeSend(ws, { type: 'error', message: 'not_registered_send_hello_first' });
     const pair = getOrCreatePair(boundPairId);
 
-    if (msg.type === 'ping') {
-      if (boundRole === 'A') pair.lastSeenA = Date.now();
-      if (boundRole === 'B') pair.lastSeenB = Date.now();
-      return safeSend(ws, { type: 'pong' });
-    }
-
-    if (msg.type === 'temp' && boundRole === 'A') {
-      const value = Number(msg.value);
-      if (Number.isNaN(value)) return safeSend(ws, { type: 'error', message: 'invalid_temp_value' });
-      pair.lastTemp = value;
+    if (msg.type === 'state' && boundRole === 'A') {
+      const on = !!msg.on;
+      pair.lastState = on;
       pair.lastSeenA = Date.now();
-      safeSend(pair.deviceB, { type: 'target_temp', value, boiling: !!msg.boiling, ts: Date.now() });
+      safeSend(pair.deviceB, { type: 'target_state', on, ts: Date.now() });
+      console.log(`Pair ${boundPairId}: state -> ${on}`);
       return;
     }
   });
@@ -71,13 +66,4 @@ wss.on('connection', (ws) => {
   });
 });
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [pairId, pair] of pairs.entries()) {
-    if (pair.deviceA && now - pair.lastSeenA > 10000) {
-      safeSend(pair.deviceB, { type: 'source_offline', pair_id: pairId });
-    }
-  }
-}, 5000);
-
-console.log(`Kettle-Sync relay server listening on ws://localhost:${PORT}`);
+console.log(`Kettle-Sync relay server (v2 - simple on/off) listening on ws://localhost:${PORT}`);
